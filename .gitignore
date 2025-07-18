@@ -76,4 +76,9 @@ client/public/build/
 # Windows system files
 Thumbs.db
 
+
+#testing
+/server/scripts/
+
+
 # End of file 

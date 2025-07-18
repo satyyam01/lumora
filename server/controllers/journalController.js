@@ -187,4 +187,63 @@ exports.addLogToToday = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
+};
+
+// Update a log in a journal entry
+exports.updateLog = async (req, res) => {
+  try {
+    const { id, logId } = req.params;
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'Log content is required.' });
+    }
+    const entry = await JournalEntry.findOne({ _id: id, user: req.user.userId });
+    if (!entry) return res.status(404).json({ message: 'Entry not found' });
+    const log = entry.logs.id(logId);
+    if (!log) return res.status(404).json({ message: 'Log not found' });
+    log.content = content;
+    // Re-run summarization on the full context
+    const fullContext = [entry.content, ...entry.logs.map(l => l.content)].filter(Boolean).join('\n');
+    try {
+      const summaryData = await summarizeJournalEntry(fullContext);
+      Object.assign(entry, summaryData);
+    } catch (aiErr) {
+      console.error('Summarization error:', aiErr.message);
+    }
+    await entry.save();
+    res.json(entry);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// Delete a log in a journal entry
+exports.deleteLog = async (req, res) => {
+  try {
+    const { id, logId } = req.params;
+    const entry = await JournalEntry.findOne({ _id: id, user: req.user.userId });
+    if (!entry) {
+      console.error('Entry not found:', id);
+      return res.status(404).json({ message: 'Entry not found' });
+    }
+    const logIndex = entry.logs.findIndex(l => l._id && l._id.toString() === logId);
+    if (logIndex === -1) {
+      console.error('Log not found:', logId, 'in entry:', entry._id, entry.logs.map(l => l._id && l._id.toString()));
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    entry.logs.splice(logIndex, 1);
+    // Re-run summarization on the full context
+    const fullContext = [entry.content, ...entry.logs.map(l => l.content)].filter(Boolean).join('\n');
+    try {
+      const summaryData = await summarizeJournalEntry(fullContext);
+      Object.assign(entry, summaryData);
+    } catch (aiErr) {
+      console.error('Summarization error:', aiErr.message);
+    }
+    await entry.save();
+    res.json(entry);
+  } catch (err) {
+    console.error('Delete log error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
 }; 
