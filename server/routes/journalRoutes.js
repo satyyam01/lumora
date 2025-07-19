@@ -15,19 +15,14 @@ router.get('/', journalController.getEntries);
 // Get today's journal entries
 router.get('/today', journalController.getTodaysEntries);
 
-// Add a log to today's entry
-router.post('/today/log', journalController.addLogToToday);
-
-// Update a log in a journal entry
-router.patch('/:id/logs/:logId', journalController.updateLog);
-// Delete a log in a journal entry
-router.delete('/:id/logs/:logId', journalController.deleteLog);
-
 // Get today's mood and sentiment
 router.get('/stats/today-mood', journalController.getTodayMood);
 
 // Get weekly sentiment trend
 router.get('/stats/weekly-sentiment', journalController.getWeeklySentimentTrend);
+
+// Get user streak data
+router.get('/stats/streak', journalController.getStreakData);
 
 // Get a single journal entry by ID
 router.get('/:id', journalController.getEntryById);

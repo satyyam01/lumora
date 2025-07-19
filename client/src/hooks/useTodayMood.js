@@ -10,13 +10,23 @@ export default function useTodayMood() {
     setError(null)
     try {
       const token = localStorage.getItem("token")
+      if (!token) {
+        setError("No authentication token")
+        setLoading(false)
+        return
+      }
       const res = await fetch("http://localhost:3000/api/journals/stats/today-mood", {
         headers: { Authorization: `Bearer ${token}` },
       })
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`)
+      }
       const json = await res.json()
       setData(json)
     } catch (err) {
+      console.error("Error fetching today's mood:", err)
       setError(err.message)
+      // Don't reset data on error, keep previous data
     } finally {
       setLoading(false)
     }
@@ -24,7 +34,7 @@ export default function useTodayMood() {
 
   useEffect(() => {
     fetchData()
-  }, [fetchData])
+  }, [])
 
   return { data, loading, error, refetch: fetchData }
 } 

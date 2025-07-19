@@ -46,6 +46,7 @@ import EntryEditor from "./components/EntryEditor"
 import Home from "./components/Home"
 import Register from "./components/Register"
 import Login from "./components/Login"
+import ChatPage from "./components/ChatPage"
 
 // Utility Functions
 
@@ -82,6 +83,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <EntryEditor />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                {/* ChatPage will be created in src/pages/ChatPage.jsx */}
+                <ChatPage />
               </ProtectedRoute>
             }
           />

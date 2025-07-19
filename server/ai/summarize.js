@@ -3,62 +3,54 @@ const { callLLM } = require('./llm'); // You will implement this API wrapper
 
 async function summarizeJournalEntry(text) {
   const prompt = `
-You are an AI journaling assistant helping summarize and label a user's journal session.
+You are Lumora, an intelligent journaling assistant that helps users reflect on their experiences.
 
-Given the full journal entry and all associated logs from today, generate:
+Your task is to deeply analyze a user's full journal entry and extract structured insights in the following JSON format:
 
-summary: A single, powerful sentence that captures the core of the user’s experience today. Prioritize specific events, emotional turning points, decisions made, recurring patterns, or meaningful realizations. Avoid vague or generic statements like “had a mixed day” or “went through a lot”—be concrete, even if brief.
-
-mood: The dominant mood in one word (e.g., overwhelmed, hopeful, anxious, energized).
-
-tags: 2–3 concise tags (as lowercase strings in an array) derived from the key topics, people, or themes mentioned in the entry/logs (no hashtags).
-
-sentiment: Choose from a limited list: positive, negative, neutral, anxious, frustrated, hopeful, grateful, joyful, sad, overwhelmed, peaceful.
-
-intent: Choose from: reflection, venting, planning, realization, processing, decision-making, gratitude.
-
-Example Output Format:
 {
-"summary": "Felt defeated after failing the mock interview but made a firm decision to restructure the prep plan starting tomorrow.",
-"mood": "determined",
-"tags": ["interview", "failure", "self-improvement"],
-"sentiment": "hopeful",
-"intent": "reflection"
+  "summary": "...",              // 1 powerful sentence that captures the *main experience*, realization, or emotional core. Be specific.
+  "bullets": ["...", "..."],     // 3–7 short, meaningful bullet points capturing *key facts*, *emotional shifts*, *patterns*, or *decisions*. Use a JSON array of strings.
+  "mood": "...",                 // 1-word dominant *emotional state* (e.g., anxious, hopeful, grateful, numb)
+  "tags": ["...", "..."],        // 2–3 *topics* or *themes* in lowercase (e.g., "relationship", "career", "growth"). No hashtags.
+  "sentiment": "...",            // Choose from: positive, negative, neutral, anxious, frustrated, hopeful, grateful, joyful, sad, overwhelmed, peaceful.
+  "intent": "..."                // Choose from: reflection, venting, planning, realization, processing, decision-making, gratitude
 }
 
-Now evaluate the following journal entry and logs:
+❗Avoid vague words like “things” or “stuff.”
+❗Don't repeat content between fields.
+✅ Be emotionally nuanced and fact-rich.
 
-Entry and logs:
-${text}
+Now analyze this entry:
 
-Respond in JSON only.`;
+"${text}"
+
+Respond with only a valid JSON object.`;
   const response = await callLLM(prompt);
   return JSON.parse(response);
 }
+
 
 async function summarizeChatSession(messages) {
   const chatText = messages.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n');
-  const prompt = `
-You are an AI reflection agent. Summarize the following chat session for key insights, decisions, and emotions. Provide:
-- A 1-line summary
-- 2-3 key insights (as an array)
-- Tags (emotions, topics)
 
-Chat session:
+  const prompt = `
+You are Lumora, an AI assistant reflecting on a past conversation between a user and you.
+
+Your task is to extract a clean, structured summary in the following JSON format:
+
+{
+  "summary": "...",              // 1-line core summary: What was this session *mostly about*? Focus on key insight, topic, or emotional shift.
+  "insights": ["...", "..."],    // 2–3 important takeaways or realizations expressed by the user.
+  "tags": ["...", "..."]         // 2–3 relevant *emotions* or *topics* mentioned. Lowercase only. No hashtags.
+}
+
+Be emotionally aware, specific, and thoughtful.
+
+Here is the session:
 ${chatText}
 
-Respond in JSON:
-{
-  "summary": "...",
-  "insights": ["...", "..."],
-  "tags": ["...", "..."]
-}
-`;
+Respond in JSON only.`;
+
   const response = await callLLM(prompt);
   return JSON.parse(response);
 }
-
-module.exports = {
-  summarizeJournalEntry,
-  summarizeChatSession,
-}; 

@@ -40,11 +40,6 @@ const journalEntrySchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   }],
-  logs: [{
-    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
-    content: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now }
-  }],
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

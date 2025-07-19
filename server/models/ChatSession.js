@@ -22,6 +22,15 @@ const chatSessionSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  title: {
+    type: String,
+    default: ''
+  },
+  entry: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'JournalEntry',
+    default: null
+  },
   messages: [messageSchema],
   createdAt: {
     type: Date,

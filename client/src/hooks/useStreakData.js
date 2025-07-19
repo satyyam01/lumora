@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 
-export default function useWeeklySentimentTrend() {
-  const [data, setData] = useState([])
+export default function useStreakData() {
+  const [data, setData] = useState({ current: 0, longest: 0, thisWeek: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -15,7 +15,7 @@ export default function useWeeklySentimentTrend() {
         setLoading(false)
         return
       }
-      const res = await fetch("http://localhost:3000/api/journals/stats/weekly-sentiment", {
+      const res = await fetch("http://localhost:3000/api/journals/stats/streak", {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -24,7 +24,7 @@ export default function useWeeklySentimentTrend() {
       const json = await res.json()
       setData(json)
     } catch (err) {
-      console.error("Error fetching weekly sentiment:", err)
+      console.error("Error fetching streak data:", err)
       setError(err.message)
       // Don't reset data on error, keep previous data
     } finally {
