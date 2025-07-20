@@ -121,14 +121,8 @@ export default function LumoraHomepage() {
           </div>
 
           <div className="hidden md:flex items-center space-x-8">
-            <Link to="#features" className="text-gray-600 hover:text-violet-600 transition-colors">
+            <Link to="/features" className="text-gray-600 hover:text-violet-600 transition-colors">
               Features
-            </Link>
-            <Link to="#how-it-works" className="text-gray-600 hover:text-violet-600 transition-colors">
-              How it Works
-            </Link>
-            <Link to="#testimonials" className="text-gray-600 hover:text-violet-600 transition-colors">
-              Testimonials
             </Link>
             {!isLoggedIn ? (
               <>
@@ -206,6 +200,35 @@ export default function LumoraHomepage() {
         </div>
       </section>
 
+      {/* Steps Section */}
+      <section className="px-4 py-20 bg-white/30 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
+              Your journey to clarity
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Three simple steps to transform your thoughts into meaningful insights and lasting growth.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+            {steps.map((step, index) => (
+              <div key={index} className="text-center group relative">
+                <div className="relative mb-8 flex justify-center items-center">
+                  {/* Separate long line behind each icon */}
+                  <div className="hidden md:block absolute left-0 right-0 top-1/2 h-0.5 bg-gradient-to-r from-violet-300 to-blue-300 mx-4 z-0" style={{zIndex: 0}}></div>
+                  <div className="w-20 h-20 bg-gradient-to-br from-violet-500 to-blue-500 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300 transform group-hover:scale-110 z-10">
+                    {step.icon}
+                  </div>
+                </div>
+                <h3 className="text-2xl font-bold mb-4 text-gray-800">{step.title}</h3>
+                <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section id="features" className="px-4 py-20">
         <div className="max-w-7xl mx-auto">
@@ -238,83 +261,6 @@ export default function LumoraHomepage() {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section id="how-it-works" className="px-4 py-20 bg-white/30 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-              Your journey to clarity
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Three simple steps to transform your thoughts into meaningful insights and lasting growth.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-            {steps.map((step, index) => (
-              <div key={index} className="text-center group">
-                <div className="relative mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-br from-violet-500 to-blue-500 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg group-hover:shadow-xl transition-all duration-300 transform group-hover:scale-110">
-                    {step.icon}
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div className="hidden md:block absolute top-10 left-full w-full h-0.5 bg-gradient-to-r from-violet-300 to-blue-300 transform translate-x-6"></div>
-                  )}
-                </div>
-                <h3 className="text-2xl font-bold mb-4 text-gray-800">{step.title}</h3>
-                <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section id="testimonials" className="px-4 py-20">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-              Loved by thousands
-            </h2>
-            <p className="text-xl text-gray-600">See how Lumora is helping people find clarity and peace of mind.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Card
-                key={index}
-                className="border-0 bg-white/60 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-              >
-                <CardContent className="p-8">
-                  <div className='h-6' />
-                  <div className="flex mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <blockquote className="text-gray-700 mb-6 leading-relaxed">"{testimonial.quote}"</blockquote>
-                  <div className="flex items-center">
-                    <Avatar className="w-12 h-12 mr-4">
-                      <AvatarImage src={testimonial.avatar || "/placeholder.svg"} alt={testimonial.name} />
-                      <AvatarFallback>
-                        {testimonial.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-semibold text-gray-800">{testimonial.name}</div>
-                      <div className="text-gray-600 text-sm">{testimonial.role}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Call to Action Section */}
       <section className="px-4 py-20 bg-gradient-to-r from-violet-500 via-blue-500 to-indigo-500">
         <div className="max-w-4xl mx-auto text-center">
@@ -326,6 +272,7 @@ export default function LumoraHomepage() {
           <Button
             size="lg"
             className="bg-white text-violet-600 hover:bg-gray-50 text-lg px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            onClick={handleGetStarted}
           >
             Get Started Free
             <ArrowRight className="ml-2 w-5 h-5" />
@@ -357,11 +304,8 @@ export default function LumoraHomepage() {
                 Contact
               </Link>
               <div className="flex items-center space-x-4">
-                <Link to="#" className="hover:text-violet-600 transition-colors">
+                <Link to="https://github.com/satyyam01/lumora" className="hover:text-violet-600 transition-colors">
                   <Github className="w-5 h-5" />
-                </Link>
-                <Link to="#" className="hover:text-violet-600 transition-colors">
-                  <Twitter className="w-5 h-5" />
                 </Link>
                 <Link to="#" className="hover:text-violet-600 transition-colors">
                   <Mail className="w-5 h-5" />

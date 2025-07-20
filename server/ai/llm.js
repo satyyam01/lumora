@@ -62,7 +62,7 @@ Don't rush to solutions. Help them explore their thoughts.` },
       {
         model: 'llama-3.3-70b-versatile',
         messages,
-        max_tokens: 512,
+        max_tokens: 1024,
         temperature: 0.7,
       },
       {

@@ -59,7 +59,7 @@ function getInsightOfTheDay() {
 }
 
 // Enhanced Components
-function WelcomeHero({ todayEntry, onCreateEntry, streakData, loadingStreak }) {
+function WelcomeHero({ todayEntry, onCreateEntry, streakData, loadingStreak, onChatWithLumora }) {
   const { greeting, icon: TimeIcon, color } = getTimeOfDayGreeting()
 
   return (
@@ -145,7 +145,7 @@ function WelcomeHero({ todayEntry, onCreateEntry, streakData, loadingStreak }) {
           <Button
             variant="outline"
             size="lg"
-            onClick={() => window.open("/chat", "_blank")}
+            onClick={onChatWithLumora}
             className="text-lg px-8 py-6 rounded-2xl border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 backdrop-blur-sm group"
           >
             <MessageCircle className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform duration-300" />
@@ -157,7 +157,7 @@ function WelcomeHero({ todayEntry, onCreateEntry, streakData, loadingStreak }) {
   )
 }
 
-function TodayEntryCard({ entry, onEdit, onChat }) {
+function TodayEntryCard({ entry, onEdit, onChat, onViewDetails }) {
   return (
     <Card className="group border-0 bg-gradient-to-br from-white/70 to-white/50 dark:from-gray-800/70 dark:to-gray-800/50 backdrop-blur-md shadow-2xl hover:shadow-3xl transition-all duration-500 transform hover:scale-[1.02] overflow-hidden">
       {/* Gradient overlay */}
@@ -270,6 +270,7 @@ function TodayEntryCard({ entry, onEdit, onChat }) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={onViewDetails}
             className="text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 group"
           >
             View Details
@@ -649,6 +650,16 @@ export default function Home() {
     }
   }
 
+  const handleViewDetails = () => {
+    if (todayEntry) {
+      navigate(`/journals/${todayEntry._id}`);
+    }
+  };
+
+  const handleChatWithLumora = () => {
+    navigate("/chat");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50/50 via-blue-50/50 to-indigo-100/50 dark:from-gray-900/50 dark:via-gray-800/50 dark:to-gray-900/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -659,6 +670,7 @@ export default function Home() {
             onCreateEntry={handleCreateEntry} 
             streakData={streakData}
             loadingStreak={loadingStreak}
+            onChatWithLumora={handleChatWithLumora}
           />
 
           {/* Today's Entry Section */}
@@ -668,7 +680,7 @@ export default function Home() {
                 <div className="w-1 h-8 bg-gradient-to-b from-violet-500 to-blue-500 rounded-full"></div>
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Today's Reflection</h2>
               </div>
-              <TodayEntryCard entry={todayEntry} onEdit={handleEditEntry} onChat={handleChatWithEntry} />
+              <TodayEntryCard entry={todayEntry} onEdit={handleEditEntry} onChat={handleChatWithEntry} onViewDetails={handleViewDetails} />
             </div>
           )}
 

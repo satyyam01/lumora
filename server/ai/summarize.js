@@ -1,6 +1,21 @@
 // server/ai/summarize.js
 const { callLLM } = require('./llm'); // You will implement this API wrapper
 
+// Helper to robustly extract JSON from LLM output
+function extractJSON(text) {
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) {
+    const jsonString = text.substring(first, last + 1);
+    try {
+      return JSON.parse(jsonString);
+    } catch (e) {
+      throw new Error('Failed to parse JSON from LLM output');
+    }
+  }
+  throw new Error('No JSON object found in LLM output');
+}
+
 async function summarizeJournalEntry(text) {
   const prompt = `
 You are Lumora, an intelligent journaling assistant that helps users reflect on their experiences.
@@ -24,9 +39,11 @@ Now analyze this entry:
 
 "${text}"
 
-Respond with only a valid JSON object.`;
+Respond with only a valid JSON object. All keys and string values must be double-quoted. 
+Do not include markdown, triple backticks, or any explanation.`;
   const response = await callLLM(prompt);
-  return JSON.parse(response);
+  console.log('LLM raw response:', response); // Log the raw LLM output for debugging
+  return extractJSON(response);
 }
 
 
@@ -54,3 +71,5 @@ Respond in JSON only.`;
   const response = await callLLM(prompt);
   return JSON.parse(response);
 }
+
+module.exports = { summarizeJournalEntry, summarizeChatSession };

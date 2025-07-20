@@ -273,6 +273,12 @@ const ChatMainArea = ({
     }
   }, [sessionId, pendingEntryChat])
 
+  useEffect(() => {
+    if (!sending && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [sending]);
+
   const handleSend = async (e) => {
     e.preventDefault()
     if (!input.trim()) return
@@ -284,9 +290,11 @@ const ChatMainArea = ({
       if (pendingEntryChat && onFirstMessage) {
         await onFirstMessage(input.trim(), setMessages)
         setInput("")
+        if (inputRef.current) inputRef.current.focus();
       } else if (sessionId) {
         setMessages((prev) => [...prev, { role: "user", content: input }])
         setInput("")
+        if (inputRef.current) inputRef.current.focus();
         const res = await sendMessageToSession(sessionId, input.trim())
         setMessages(res.messages || [])
       }

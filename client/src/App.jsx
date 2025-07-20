@@ -47,6 +47,7 @@ import Home from "./components/Home"
 import Register from "./components/Register"
 import Login from "./components/Login"
 import ChatPage from "./components/ChatPage"
+import Features from "./components/Features";
 
 // Utility Functions
 
@@ -95,6 +96,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/features" element={<Features />} />
         </Route>
       </Routes>
     </Router>
