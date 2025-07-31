@@ -48,6 +48,8 @@ import Register from "./components/Register"
 import Login from "./components/Login"
 import ChatPage from "./components/ChatPage"
 import Features from "./components/Features";
+import WeeklyTrend from "./components/WeeklyTrend";
+import ProfilePage from "./components/ProfilePage";
 
 // Utility Functions
 
@@ -97,6 +99,15 @@ function App() {
             }
           />
           <Route path="/features" element={<Features />} />
+          <Route
+            path="/weekly-trend"
+            element={
+              <ProtectedRoute>
+                <WeeklyTrend />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </Router>

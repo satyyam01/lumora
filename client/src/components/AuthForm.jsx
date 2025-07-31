@@ -8,17 +8,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Alert, AlertDescription } from "./ui/alert"
 import { Sparkles, Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react"
 
-export default function AuthForm({ mode, onSubmit, error }) {
+export default function AuthForm({ mode, onSubmit, error, step = 1, pendingEmail = "", onResendOtp, resendTimer = 0 }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [otp, setOtp] = useState("")
+  const [name, setName] = useState("")
+  const [dob, setDob] = useState("")
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
     try {
-      await onSubmit({ email, password })
+      if (mode === "register" && step === 2) {
+        await onSubmit({ otp })
+      } else if (mode === "register" && step === 1) {
+        await onSubmit({ email, password, name, dob })
+      } else {
+        await onSubmit({ email, password })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -55,62 +64,136 @@ export default function AuthForm({ mode, onSubmit, error }) {
           <Card className="border-0 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md shadow-2xl hover:shadow-3xl transition-all duration-300">
             <CardHeader className="space-y-1 pb-6">
               <CardTitle className="text-2xl font-bold text-center bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-                {isLogin ? "Sign In" : "Create Account"}
+                {isLogin ? "Sign In" : step === 2 ? "Verify OTP" : "Create Account"}
               </CardTitle>
               <CardDescription className="text-center text-gray-600 dark:text-gray-400">
                 {isLogin
                   ? "Enter your credentials to access your journal"
+                  : step === 2
+                  ? `Enter the 6-digit code sent to ${pendingEmail}`
                   : "Join thousands finding clarity through mindful journaling"}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Email Field */}
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Email Address
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="pl-10 h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
-                    />
-                  </div>
-                </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="pl-10 pr-10 h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
+                {/* Name and DOB Fields (Register Step 1) */}
+                {isRegister && step === 1 && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Name
+                      </Label>
+                      <Input
+                        id="name"
+                        type="text"
+                        placeholder="Enter your name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        className="h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dob" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Date of Birth
+                      </Label>
+                      <Input
+                        id="dob"
+                        type="date"
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                        required
+                        className="h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
+                      />
+                    </div>
+                  </>
+                )}
+                {/* Email/Password Fields (Step 1) */}
+                {!(isRegister && step === 2) && (
+                  <>
+                    {/* Email Field */}
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Email Address
+                      </Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          className="pl-10 h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                    {/* Password Field */}
+                    <div className="space-y-2">
+                      <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter your password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                          className="pl-10 pr-10 h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* OTP Field (Step 2) */}
+                {isRegister && step === 2 && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="otp" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        6-digit OTP Code
+                      </Label>
+                      <Input
+                        id="otp"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        placeholder="Enter OTP"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                        required
+                        className="h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200 tracking-widest text-lg text-center font-mono"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Didn't receive the code?
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={onResendOtp}
+                        disabled={resendTimer > 0}
+                        className="ml-2 px-3 py-1 text-xs font-medium border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 disabled:opacity-60"
+                      >
+                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend OTP"}
+                      </Button>
+                    </div>
+                  </>
+                )}
                 {/* Error Message */}
                 {error && (
                   <Alert className="border-red-200 bg-red-50/50 dark:bg-red-900/20 dark:border-red-800">
@@ -118,7 +201,6 @@ export default function AuthForm({ mode, onSubmit, error }) {
                     <AlertDescription className="text-red-700 dark:text-red-300">{error}</AlertDescription>
                   </Alert>
                 )}
-
                 {/* Submit Button */}
                 <Button
                   type="submit"
@@ -128,11 +210,11 @@ export default function AuthForm({ mode, onSubmit, error }) {
                   {isLoading ? (
                     <div className="flex items-center space-x-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      <span>{isLogin ? "Signing In..." : "Creating Account..."}</span>
+                      <span>{isLogin ? "Signing In..." : step === 2 ? "Verifying..." : "Creating Account..."}</span>
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2">
-                      <span>{isLogin ? "Sign In" : "Create Account"}</span>
+                      <span>{isLogin ? "Sign In" : step === 2 ? "Verify OTP" : "Create Account"}</span>
                       <ArrowRight className="w-4 h-4" />
                     </div>
                   )}

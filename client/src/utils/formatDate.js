@@ -1,9 +1,6 @@
+import { utcToZonedTime, format as formatTz } from 'date-fns-tz';
+
 export default function formatDate(dateString) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: undefined,
-  })
+  const istDate = utcToZonedTime(dateString, 'Asia/Kolkata');
+  return formatTz(istDate, 'EEEE, d MMMM', { timeZone: 'Asia/Kolkata' });
 } 

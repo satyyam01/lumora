@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
@@ -21,17 +21,16 @@ import {
   Loader2,
   ChevronDown,
   X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
+import { utcToZonedTime, format as formatTz } from 'date-fns-tz';
 
 // Utility Functions
-function formatDate(dateString) {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: undefined,
-  })
+function formatDateIST(dateString) {
+  const istDate = utcToZonedTime(dateString, 'Asia/Kolkata');
+  return formatTz(istDate, 'EEEE, d MMMM', { timeZone: 'Asia/Kolkata' });
 }
 
 function formatTime(dateString) {
@@ -115,8 +114,9 @@ function EmptyState({ title, description, action }) {
   )
 }
 
-function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSentimentChange, entriesCount }) {
+function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSentimentChange, sortBy, onSortChange, entriesCount }) {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isSortOpen, setIsSortOpen] = useState(false)
 
   const sentiments = [
     { value: "", label: "All Moods", icon: "🌈" },
@@ -127,6 +127,12 @@ function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSent
     { value: "grateful", label: "Grateful", icon: "🙏" },
     { value: "anxious", label: "Anxious", icon: "😰" },
     { value: "hopeful", label: "Hopeful", icon: "🌟" },
+  ]
+
+  const sortOptions = [
+    { value: "newest", label: "Newest First", icon: ArrowDown },
+    { value: "oldest", label: "Oldest First", icon: ArrowUp },
+    { value: "last-edited", label: "Last Edited", icon: Clock },
   ]
 
   return (
@@ -153,9 +159,10 @@ function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSent
         )}
       </div>
 
-      {/* Filter Controls */}
+      {/* Filter and Sort Controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
+          {/* Filter Dropdown */}
           <div className="relative">
             <Button
               variant="outline"
@@ -192,6 +199,47 @@ function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSent
             )}
           </div>
 
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setIsSortOpen(!isSortOpen)}
+              className="border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 backdrop-blur-sm"
+            >
+              <ArrowUpDown className="w-4 h-4 mr-2" />
+              Sort by
+              <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isSortOpen ? "rotate-180" : ""}`} />
+            </Button>
+
+            {isSortOpen && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-violet-200 dark:border-violet-700 rounded-xl shadow-xl z-10">
+                <div className="p-2 space-y-1">
+                  {sortOptions.map((option) => {
+                    const IconComponent = option.icon
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          onSortChange(option.value)
+                          setIsSortOpen(false)
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2 ${
+                          sortBy === option.value
+                            ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
+                            : "hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        <IconComponent className="w-4 h-4" />
+                        <span>{option.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Active Filters */}
           {selectedSentiment && (
             <Badge
               variant="secondary"
@@ -203,6 +251,24 @@ function SearchAndFilter({ searchTerm, onSearchChange, selectedSentiment, onSent
                 size="icon"
                 onClick={() => onSentimentChange("")}
                 className="w-4 h-4 ml-1 p-0 hover:bg-violet-200 dark:hover:bg-violet-800"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </Badge>
+          )}
+
+          {/* Active Sort Badge */}
+          {sortBy !== "newest" && (
+            <Badge
+              variant="secondary"
+              className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
+            >
+              {sortOptions.find(opt => opt.value === sortBy)?.label}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onSortChange("newest")}
+                className="w-4 h-4 ml-1 p-0 hover:bg-blue-200 dark:hover:bg-blue-800"
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -240,7 +306,7 @@ function JournalEntryCard({ entry, onClick, onTalkClick }) {
             className="text-xs bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
           >
             <Calendar className="w-3 h-3 mr-1" />
-            {formatDate(entry.updatedAt)}
+            {formatDateIST(entry.createdForDate || entry.updatedAt)}
           </Badge>
 
           <div className="flex items-center space-x-2">
@@ -349,6 +415,7 @@ export default function JournalList() {
   const [error, setError] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSentiment, setSelectedSentiment] = useState("")
+  const [sortBy, setSortBy] = useState("newest") // "newest", "oldest", "last-edited"
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -375,9 +442,9 @@ export default function JournalList() {
     fetchEntries()
   }, [])
 
-  // Filter entries based on search term and sentiment
-  useEffect(() => {
-    let filtered = entries
+  // Filter and sort entries based on search term, sentiment, and sort option
+  const filteredAndSortedEntries = useMemo(() => {
+    let filtered = [...entries] // Create a new array to avoid mutating the original
 
     // Filter by search term
     if (searchTerm) {
@@ -395,8 +462,32 @@ export default function JournalList() {
       filtered = filtered.filter((entry) => entry.sentiment === selectedSentiment)
     }
 
-    setFilteredEntries(filtered)
-  }, [entries, searchTerm, selectedSentiment])
+    // Sort entries
+    const sortedEntries = [...filtered].sort((a, b) => {
+      if (sortBy === "newest") {
+        // Sort by createdForDate (newest first)
+        const dateA = new Date(a.createdForDate || a.createdAt).getTime()
+        const dateB = new Date(b.createdForDate || b.createdAt).getTime()
+        return dateB - dateA
+      } else if (sortBy === "oldest") {
+        // Sort by createdForDate (oldest first)
+        const dateA = new Date(a.createdForDate || a.createdAt).getTime()
+        const dateB = new Date(b.createdForDate || b.createdAt).getTime()
+        return dateA - dateB
+      } else if (sortBy === "last-edited") {
+        // Sort by createdAt (newest first)
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+      return 0
+    })
+
+    return sortedEntries
+  }, [entries, searchTerm, selectedSentiment, sortBy])
+
+  // Update filtered entries when the memoized value changes
+  useEffect(() => {
+    setFilteredEntries(filteredAndSortedEntries)
+  }, [filteredAndSortedEntries])
 
   if (loading) return <LoadingSpinner />
 
@@ -463,6 +554,8 @@ export default function JournalList() {
           onSearchChange={setSearchTerm}
           selectedSentiment={selectedSentiment}
           onSentimentChange={setSelectedSentiment}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
           entriesCount={filteredEntries.length}
         />
       )}

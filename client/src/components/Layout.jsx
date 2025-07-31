@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Link, useNavigate, Outlet } from "react-router-dom"
 import { Button } from "./ui/button"
 import { ThemeProvider, ThemeSwitcher } from "./ThemeProvider"
-import { Sparkles, Menu, X, MessageCircle, BookOpen, Home } from "lucide-react"
+import { Sparkles, Menu, X, MessageCircle, BookOpen, Home, TrendingUp, User } from "lucide-react"
 import Footer from "./Footer"
 
 function Navbar() {
@@ -62,6 +62,26 @@ function Navbar() {
                 <Link to="/chat" className="flex items-center space-x-2">
                   <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
                   <span className="font-medium">My Chats</span>
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                className="text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:text-violet-700 dark:hover:text-violet-300 transition-all duration-200 group"
+              >
+                <Link to="/weekly-trend" className="flex items-center space-x-2">
+                  <TrendingUp className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="font-medium">Trends</span>
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                className="text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:text-violet-700 dark:hover:text-violet-300 transition-all duration-200 group"
+              >
+                <Link to="/profile" className="flex items-center space-x-2">
+                  <User className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="font-medium">My Profile</span>
                 </Link>
               </Button>
             </>
@@ -142,6 +162,26 @@ function Navbar() {
                   <Link to="/chat" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3">
                     <MessageCircle className="w-5 h-5" />
                     <span className="font-medium">My Chats</span>
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="w-full text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 justify-start"
+                >
+                  <Link to="/weekly-trend" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3">
+                    <TrendingUp className="w-5 h-5" />
+                    <span className="font-medium">Trends</span>
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="w-full text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 justify-start"
+                >
+                  <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="flex items-center space-x-3">
+                    <User className="w-5 h-5" />
+                    <span className="font-medium">My Profile</span>
                   </Link>
                 </Button>
                 <div className="border-t border-violet-100 dark:border-violet-800/50 pt-4">

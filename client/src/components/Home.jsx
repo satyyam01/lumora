@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useCallback, useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
@@ -34,6 +34,7 @@ import useTodaysEntriesWithRefetch from "../hooks/useTodaysEntriesWithRefetch"
 import useTodayMood from "../hooks/useTodayMood"
 import useWeeklySentimentTrend from "../hooks/useWeeklySentimentTrend"
 import useStreakData from "../hooks/useStreakData"
+import GoalProgressCard from "./GoalProgressCard"
 import formatTime from "../utils/formatTime"
 import getSentimentColor from "../utils/getSentimentColor"
 
@@ -56,6 +57,41 @@ function getInsightOfTheDay() {
     "Consistent journaling builds stronger self-awareness",
   ]
   return insights[Math.floor(Math.random() * insights.length)]
+}
+
+function DailyInspiration() {
+  const [currentInsight, setCurrentInsight] = useState(getInsightOfTheDay())
+
+  // Refresh inspiration every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentInsight(getInsightOfTheDay())
+    }, 120000) // 2 minutes = 120,000 ms
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <Card className="border-0 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-indigo-500/10 backdrop-blur-md shadow-xl">
+      <CardContent className="p-8 text-center">
+        <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+          <Star className="w-8 h-8 text-white" />
+        </div>
+        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Daily Inspiration</h3>
+        <p className="text-lg text-gray-700 dark:text-gray-300 italic leading-relaxed max-w-2xl mx-auto">
+          "{currentInsight}"
+        </p>
+        <div className="flex items-center justify-center space-x-4 mt-6 text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center space-x-1">
+          </div>
+          <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+          <div className="flex items-center space-x-1">
+            
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 // Enhanced Components
@@ -389,7 +425,7 @@ function MoodAnalyticsCard({ todayMood, todaySentiment, loading }) {
   )
 }
 
-function SentimentTrendCard({ sentimentTrend, loading }) {
+function SentimentTrendCard({ sentimentTrend, loading, onViewFullTrend }) {
   // Add error boundary for this component
   if (loading === undefined || sentimentTrend === undefined) {
     return (
@@ -514,7 +550,16 @@ function SentimentTrendCard({ sentimentTrend, loading }) {
                 })}
 
                 {/* Day labels */}
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => (
+                {(() => {
+                  const labels = []
+                  const today = new Date()
+                  for (let i = 6; i >= 0; i--) {
+                    const date = new Date(today)
+                    date.setDate(today.getDate() - i)
+                    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+                    labels.push(dayName)
+                  }
+                  return labels.map((day, i) => (
                   <text
                     key={day}
                     x={40 + i * 40}
@@ -524,7 +569,8 @@ function SentimentTrendCard({ sentimentTrend, loading }) {
                   >
                     {day}
                   </text>
-                ))}
+                  ))
+                })()}
               </svg>
             </div>
 
@@ -542,6 +588,19 @@ function SentimentTrendCard({ sentimentTrend, loading }) {
                 <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                 <span className="text-gray-600 dark:text-gray-400">Negative</span>
               </div>
+            </div>
+
+            {/* View Full Trend Button */}
+            <div className="pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onViewFullTrend}
+                className="w-full border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                View Full Trend
+              </Button>
             </div>
           </div>
         )}
@@ -608,31 +667,13 @@ export default function Home() {
     }
   }, [refetchToday, refetchTrend, refetchMood, refetchStreak])
 
-  // Force refetch every 30 seconds to keep data fresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetchToday && refetchToday()
-      refetchTrend && refetchTrend()
-      refetchMood && refetchMood()
-      refetchStreak && refetchStreak()
-    }, 30000)
 
-    return () => clearInterval(interval)
-  }, [refetchToday, refetchTrend, refetchMood, refetchStreak])
 
   const safeSentimentTrend = useMemo(() => Array.isArray(sentimentTrend) ? sentimentTrend : [], [sentimentTrend])
   const todayMood = useMemo(() => todayMoodData?.mood || "unknown", [todayMoodData?.mood])
   const todaySentiment = useMemo(() => todayMoodData?.sentiment || "unknown", [todayMoodData?.sentiment])
 
-  // Debug logging
-  console.log("Home component render:", {
-    todayMoodData,
-    sentimentTrend,
-    streakData,
-    loadingMood,
-    loadingTrend,
-    loadingStreak
-  })
+  // Remove debug logging for production
 
   const handleCreateEntry = () => {
     navigate("/journals/new", { state: { from: location.pathname } })
@@ -658,6 +699,10 @@ export default function Home() {
 
   const handleChatWithLumora = () => {
     navigate("/chat");
+  };
+
+  const handleViewFullTrend = () => {
+    navigate("/weekly-trend");
   };
 
   return (
@@ -701,32 +746,24 @@ export default function Home() {
                 key={`trend-${safeSentimentTrend.length}-${loadingTrend}`}
                 sentimentTrend={safeSentimentTrend} 
                 loading={loadingTrend} 
+                onViewFullTrend={handleViewFullTrend}
               />
             </div>
+          </div>
+
+          {/* Goal Section */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-1 h-8 bg-gradient-to-b from-green-500 to-emerald-500 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Your Goals</h2>
+            </div>
+            <GoalProgressCard />
           </div>
 
 
 
           {/* Daily Inspiration */}
-          <Card className="border-0 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-indigo-500/10 backdrop-blur-md shadow-xl">
-            <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-                <Star className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Daily Inspiration</h3>
-              <p className="text-lg text-gray-700 dark:text-gray-300 italic leading-relaxed max-w-2xl mx-auto">
-                "{getInsightOfTheDay()}"
-              </p>
-              <div className="flex items-center justify-center space-x-4 mt-6 text-sm text-gray-500 dark:text-gray-400">
-                <div className="flex items-center space-x-1">
-                </div>
-                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
-                <div className="flex items-center space-x-1">
-                  
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <DailyInspiration />
         </div>
       </div>
     </div>

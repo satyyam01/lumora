@@ -71,4 +71,31 @@ async function queryPinecone({ embedding, topK = 5, namespace = 'default' }) {
   }
 }
 
-module.exports = { upsertToPinecone, queryPinecone }; 
+/**
+ * Delete all vectors for a user from Pinecone by userId (using metadata filter)
+ * @param {string} userId
+ * @param {string} [namespace='default']
+ */
+async function deleteUserVectorsFromPinecone(userId, namespace = 'default') {
+  try {
+    const response = await axios.post(
+      `${PINECONE_HOST}/vectors/delete`,
+      {
+        filter: { userId },
+        namespace,
+      },
+      {
+        headers: {
+          'Api-Key': PINECONE_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return response.data;
+  } catch (err) {
+    console.error('Pinecone delete error:', err.response?.data || err.message);
+    throw new Error('Pinecone delete API call failed');
+  }
+}
+
+module.exports = { upsertToPinecone, queryPinecone, deleteUserVectorsFromPinecone }; 

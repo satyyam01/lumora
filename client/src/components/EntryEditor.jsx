@@ -6,8 +6,16 @@ import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Alert, AlertDescription } from "./ui/alert";
-import { ArrowLeft, Brain, PenTool, Sparkles, Loader2, Save, Trash2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Brain, PenTool, Sparkles, Loader2, Save, Trash2, AlertCircle, Calendar } from "lucide-react";
 import LoadingSpinner from "./LoadingSpinner";
+
+// Helper to get midnight IST in UTC for a given YYYY-MM-DD string
+function getISTMidnightUTC(dateString) {
+  const [year, month, day] = dateString.split('-').map(Number);
+  // Subtract one day for UTC, then set 18:30
+  const utcDate = new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+  return utcDate.toISOString();
+}
 
 export default function EntryEditor() {
   const { id } = useParams()
@@ -18,6 +26,13 @@ export default function EntryEditor() {
   const [entry, setEntry] = useState(null)
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  })
   const [loading, setLoading] = useState(!isNew)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -69,12 +84,19 @@ export default function EntryEditor() {
         body: JSON.stringify({
           title: isNew ? title : entry?.title,
           content: isNew ? content : entry?.content,
+          createdForDate: isNew ? getISTMidnightUTC(selectedDate) : undefined,
         }),
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || "Failed to save entry")
+      
+      // If this is a new entry, navigate back with a refetch flag
+      if (isNew) {
+        navigate(from, { state: { refetch: true } })
+      } else {
       navigate(from)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -260,6 +282,36 @@ export default function EntryEditor() {
                 className="text-xl font-semibold h-14 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500"
               />
             </div>
+
+            {/* Date Selector - Only for new entries */}
+            {isNew && (
+              <div className="space-y-2">
+                <label
+                  htmlFor="date"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center space-x-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Entry Date</span>
+                </label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  max={(() => {
+                    const today = new Date()
+                    const year = today.getFullYear()
+                    const month = String(today.getMonth() + 1).padStart(2, '0')
+                    const day = String(today.getDate()).padStart(2, '0')
+                    return `${year}-${month}-${day}`
+                  })()}
+                  className="h-12 bg-white/50 dark:bg-gray-700/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Choose the date this entry is for (cannot be in the future)
+                </p>
+              </div>
+            )}
 
             {/* Content Textarea */}
             <div className="space-y-2">

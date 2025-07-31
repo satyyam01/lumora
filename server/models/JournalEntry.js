@@ -15,6 +15,11 @@ const journalEntrySchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  createdForDate: {
+    type: Date,
+    default: Date.now,
+    required: true
+  },
   embedding: {
     type: [Number],
     default: undefined // Only set if embedding is generated

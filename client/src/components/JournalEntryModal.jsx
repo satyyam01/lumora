@@ -9,10 +9,25 @@ import { Alert, AlertDescription } from "./ui/alert"
 import { Badge } from "./ui/badge"
 import { PenTool, Sparkles, Save, X, BookOpen, Calendar, AlertCircle, Loader2, Plus } from "lucide-react"
 
+// Helper to get midnight IST in UTC for a given YYYY-MM-DD string
+function getISTMidnightUTC(dateString) {
+  const [year, month, day] = dateString.split('-').map(Number);
+  // Subtract one day for UTC, then set 18:30
+  const utcDate = new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+  return utcDate.toISOString();
+}
+
 export default function JournalEntryModal({ onSuccess }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -29,7 +44,11 @@ export default function JournalEntryModal({ onSuccess }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ title, content }),
+        body: JSON.stringify({ 
+          title, 
+          content, 
+          createdForDate: getISTMidnightUTC(selectedDate)
+        }),
       })
 
       const data = await res.json()
@@ -39,6 +58,13 @@ export default function JournalEntryModal({ onSuccess }) {
       setOpen(false)
       setTitle("")
       setContent("")
+      setSelectedDate(() => {
+        const today = new Date()
+        const year = today.getFullYear()
+        const month = String(today.getMonth() + 1).padStart(2, '0')
+        const day = String(today.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })
       if (onSuccess) onSuccess()
     } catch (err) {
       setError(err.message)
@@ -53,6 +79,13 @@ export default function JournalEntryModal({ onSuccess }) {
   }
 
   const currentDate = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+
+  const selectedDateFormatted = new Date(selectedDate).toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -86,7 +119,7 @@ export default function JournalEntryModal({ onSuccess }) {
                 </DialogTitle>
                 <div className="flex items-center space-x-2 mt-1">
                   <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{currentDate}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{selectedDateFormatted}</span>
                 </div>
               </div>
             </div>
@@ -104,6 +137,34 @@ export default function JournalEntryModal({ onSuccess }) {
         {/* Content */}
         <div className="relative p-8 overflow-y-auto max-h-[calc(90vh-200px)]">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Date Selector */}
+            <div className="space-y-3">
+              <Label
+                htmlFor="date"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center space-x-2"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Entry Date</span>
+              </Label>
+              <Input
+                id="date"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={(() => {
+                  const today = new Date()
+                  const year = today.getFullYear()
+                  const month = String(today.getMonth() + 1).padStart(2, '0')
+                  const day = String(today.getDate()).padStart(2, '0')
+                  return `${year}-${month}-${day}`
+                })()}
+                className="h-12 bg-white/50 dark:bg-gray-800/50 border-violet-200 dark:border-violet-700 focus:border-violet-400 dark:focus:border-violet-500 focus:ring-violet-400/20 backdrop-blur-sm transition-all duration-200 text-lg"
+              />
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Choose the date this entry is for (cannot be in the future)
+              </div>
+            </div>
+
             {/* Spacer above Entry Title */}
             <div className="h-5" />
             {/* Title Field */}

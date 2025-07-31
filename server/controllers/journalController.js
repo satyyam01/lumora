@@ -1,23 +1,107 @@
 const JournalEntry = require('../models/JournalEntry');
+const User = require('../models/User');
 const { summarizeJournalEntry } = require('../ai/summarize');
 const { embedTextWithCohere } = require('../ai/cohere');
 const { upsertToPinecone, queryPinecone } = require('../ai/pinecone');
 const { callLLM } = require('../ai/llm');
+const moment = require('moment-timezone');
+
+// Function to update user streak data
+async function updateUserStreak(userId, entryDate, createdAt) {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return;
+
+    const entryDateOnly = new Date(entryDate);
+    entryDateOnly.setHours(0, 0, 0, 0);
+    
+    const createdAtOnly = new Date(createdAt);
+    createdAtOnly.setHours(0, 0, 0, 0);
+
+    // Check if this is a valid streak entry (createdAt and createdForDate are the same day)
+    const isSameDay = entryDateOnly.getTime() === createdAtOnly.getTime();
+    
+    if (!isSameDay) {
+      // If dates don't match, reset streak
+      user.streakData.currentStreak = 0;
+      user.streakData.lastEntryDate = null;
+      user.streakData.lastEntryCreatedAt = null;
+      await user.save();
+      return;
+    }
+
+    // Check if this is a consecutive day
+    let isConsecutive = false;
+    if (user.streakData.lastEntryDate) {
+      const lastEntryDate = new Date(user.streakData.lastEntryDate);
+      lastEntryDate.setHours(0, 0, 0, 0);
+      
+      const daysDiff = Math.floor((entryDateOnly.getTime() - lastEntryDate.getTime()) / (1000 * 60 * 60 * 24));
+      isConsecutive = daysDiff === 1;
+    } else {
+      // First entry or after a break
+      isConsecutive = true;
+    }
+
+    if (isConsecutive) {
+      // Increment current streak
+      user.streakData.currentStreak += 1;
+    } else {
+      // Check if it's the same day as last entry
+      const lastEntryDate = new Date(user.streakData.lastEntryDate);
+      lastEntryDate.setHours(0, 0, 0, 0);
+      
+      if (entryDateOnly.getTime() === lastEntryDate.getTime()) {
+        // Same day entry, don't change streak
+        return;
+      } else {
+        // Break in streak, reset to 1
+        user.streakData.currentStreak = 1;
+      }
+    }
+
+    // Update longest streak if current streak is longer
+    if (user.streakData.currentStreak > user.streakData.longestStreak) {
+      user.streakData.longestStreak = user.streakData.currentStreak;
+    }
+
+    // Update last entry dates
+    user.streakData.lastEntryDate = entryDateOnly;
+    user.streakData.lastEntryCreatedAt = createdAtOnly;
+
+    await user.save();
+  } catch (error) {
+    console.error('Error updating user streak:', error);
+  }
+}
 
 // Create a new journal entry
 exports.createEntry = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, createdForDate } = req.body;
     const entry = new JournalEntry({
       title,
       content,
-      user: req.user.userId
+      user: req.user.userId,
+      createdForDate: createdForDate ? new Date(createdForDate) : new Date()
     });
     await entry.save();
+    
+    // Update user streak data
+    await updateUserStreak(req.user.userId, entry.createdForDate, entry.createdAt);
+    
     // Summarize and update
     try {
       const summaryData = await summarizeJournalEntry(content);
+      
+      // Store the original createdAt to ensure it's not modified
+      // This is critical for the streak system which relies on createdAt dates
+      const originalCreatedAt = entry.createdAt;
+      
       Object.assign(entry, summaryData);
+      
+      // Ensure createdAt is preserved before saving
+      entry.createdAt = originalCreatedAt;
       await entry.save();
       // --- New: Embed bullet points and upsert to Pinecone ---
       if (summaryData.bullets && Array.isArray(summaryData.bullets)) {
@@ -29,7 +113,7 @@ exports.createEntry = async (req, res) => {
           metadata: {
             entryId: entry._id.toString(),
             userId: entry.user.toString(),
-            date: entry.createdAt,
+            date: entry.createdForDate,
             title: entry.title,
             summary: entry.summary,
             bullets: summaryData.bullets,
@@ -46,6 +130,7 @@ exports.createEntry = async (req, res) => {
     }
     res.status(201).json(entry);
   } catch (err) {
+    console.error('Error in createEntry:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -56,6 +141,7 @@ exports.getEntries = async (req, res) => {
     const entries = await JournalEntry.find({ user: req.user.userId }).sort({ createdAt: -1 });
     res.json(entries);
   } catch (err) {
+    console.error('Error in getEntries:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -67,6 +153,7 @@ exports.getEntryById = async (req, res) => {
     if (!entry) return res.status(404).json({ message: 'Entry not found' });
     res.json(entry);
   } catch (err) {
+    console.error('Error in getEntryById:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -81,10 +168,18 @@ exports.updateEntry = async (req, res) => {
       { new: true, runValidators: true }
     );
     if (!entry) return res.status(404).json({ message: 'Entry not found' });
+    
+    // Store the original createdAt to ensure it's not modified
+    // This is critical for the streak system which relies on createdAt dates
+    const originalCreatedAt = entry.createdAt;
+    
     // Summarize and update
     try {
       const summaryData = await summarizeJournalEntry(content);
       Object.assign(entry, summaryData);
+      
+      // Ensure createdAt is preserved before saving
+      entry.createdAt = originalCreatedAt;
       await entry.save();
       // --- New: Embed bullet points and upsert to Pinecone ---
       if (summaryData.bullets && Array.isArray(summaryData.bullets)) {
@@ -96,7 +191,7 @@ exports.updateEntry = async (req, res) => {
           metadata: {
             entryId: entry._id.toString(),
             userId: entry.user.toString(),
-            date: entry.createdAt,
+            date: entry.createdForDate,
             title: entry.title,
             summary: entry.summary,
             bullets: summaryData.bullets,
@@ -113,6 +208,7 @@ exports.updateEntry = async (req, res) => {
     }
     res.json(entry);
   } catch (err) {
+    console.error('Error in updateEntry:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -124,6 +220,7 @@ exports.deleteEntry = async (req, res) => {
     if (!entry) return res.status(404).json({ message: 'Entry not found' });
     res.json({ message: 'Entry deleted' });
   } catch (err) {
+    console.error('Error in deleteEntry:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -138,10 +235,11 @@ exports.getTodaysEntries = async (req, res) => {
     end.setHours(23, 59, 59, 999);
     const entries = await JournalEntry.find({
       user: userId,
-      createdAt: { $gte: start, $lte: end }
+      createdForDate: { $gte: start, $lte: end }
     }).sort({ createdAt: -1 });
     res.json(entries);
   } catch (err) {
+    console.error('Error in getTodaysEntries:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
@@ -156,7 +254,7 @@ exports.getTodayMood = async (req, res) => {
     end.setHours(23, 59, 59, 999);
     const entry = await JournalEntry.findOne({
       user: userId,
-      createdAt: { $gte: start, $lte: end },
+      createdForDate: { $gte: start, $lte: end },
       mood: { $exists: true, $ne: null },
       sentiment: { $exists: true, $ne: null }
     }).sort({ createdAt: -1 });
@@ -171,20 +269,23 @@ exports.getTodayMood = async (req, res) => {
 exports.getWeeklySentimentTrend = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayIST = moment().tz('Asia/Kolkata').startOf('day');
     const trend = [];
+    
     for (let i = 6; i >= 0; i--) {
-      const day = new Date(today);
-      day.setDate(today.getDate() - i);
-      const start = new Date(day);
-      const end = new Date(day);
-      end.setHours(23, 59, 59, 999);
+      // Get the IST day
+      const dayIST = todayIST.clone().subtract(i, 'days');
+      // Start of IST day in UTC
+      const startUTC = dayIST.clone().tz('Asia/Kolkata').startOf('day').utc().toDate();
+      // End of IST day in UTC
+      const endUTC = dayIST.clone().tz('Asia/Kolkata').endOf('day').utc().toDate();
+
       const entry = await JournalEntry.findOne({
         user: userId,
-        createdAt: { $gte: start, $lte: end },
+        createdForDate: { $gte: startUTC, $lte: endUTC },
         sentiment: { $exists: true, $ne: null }
       }).sort({ createdAt: -1 });
+
       trend.push(entry ? entry.sentiment : null);
     }
     res.json(trend);
@@ -200,89 +301,51 @@ exports.getStreakData = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Get all entries for this user, sorted by date (newest first)
-    const entries = await JournalEntry.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .select('createdAt')
-      .lean();
-    
-    if (entries.length === 0) {
-      return res.json({
-        current: 0,
-        longest: 0,
-        thisWeek: 0
-      });
+    // Get user data with streak information
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
     
-    // Calculate current streak
-    let currentStreak = 0;
-    let currentDate = new Date(today);
-    
-    for (let i = 0; i < 365; i++) { // Check up to a year back
-      const dayStart = new Date(currentDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(currentDate);
-      dayEnd.setHours(23, 59, 59, 999);
+    // Check if streak should be reset (if last entry was more than 1 day ago)
+    let currentStreak = user.streakData.currentStreak;
+    if (user.streakData.lastEntryDate) {
+      const lastEntryDate = new Date(user.streakData.lastEntryDate);
+      lastEntryDate.setHours(0, 0, 0, 0);
       
-      const hasEntry = entries.some(entry => {
-        const entryDate = new Date(entry.createdAt);
-        return entryDate >= dayStart && entryDate <= dayEnd;
-      });
+      const daysSinceLastEntry = Math.floor((today.getTime() - lastEntryDate.getTime()) / (1000 * 60 * 60 * 24));
       
-      if (hasEntry) {
-        currentStreak++;
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else {
-        break;
+      // If more than 1 day has passed since last entry, reset streak
+      if (daysSinceLastEntry > 1) {
+        currentStreak = 0;
+        user.streakData.currentStreak = 0;
+        user.streakData.lastEntryDate = null;
+        user.streakData.lastEntryCreatedAt = null;
+        await user.save();
       }
     }
-    
-    // Calculate longest streak
-    let longestStreak = 0;
-    let tempStreak = 0;
-    let lastDate = null;
-    
-    for (const entry of entries) {
-      const entryDate = new Date(entry.createdAt);
-      entryDate.setHours(0, 0, 0, 0);
-      
-      if (lastDate === null) {
-        tempStreak = 1;
-        lastDate = entryDate;
-      } else {
-        const diffDays = Math.floor((lastDate - entryDate) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) {
-          tempStreak++;
-        } else {
-          longestStreak = Math.max(longestStreak, tempStreak);
-          tempStreak = 1;
-        }
-        lastDate = entryDate;
-      }
-    }
-    longestStreak = Math.max(longestStreak, tempStreak);
     
     // Calculate this week's entries
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
     weekStart.setHours(0, 0, 0, 0);
     
-    const thisWeekEntries = entries.filter(entry => {
-      const entryDate = new Date(entry.createdAt);
-      return entryDate >= weekStart;
-    });
+    const thisWeekEntries = await JournalEntry.find({ 
+      user: userId,
+      createdForDate: { $gte: weekStart }
+    }).select('createdForDate').lean();
     
     // Count unique days this week
     const uniqueDaysThisWeek = new Set();
     thisWeekEntries.forEach(entry => {
-      const entryDate = new Date(entry.createdAt);
+      const entryDate = new Date(entry.createdForDate);
       entryDate.setHours(0, 0, 0, 0);
       uniqueDaysThisWeek.add(entryDate.toISOString().split('T')[0]);
     });
     
     res.json({
       current: currentStreak,
-      longest: longestStreak,
+      longest: user.streakData.longestStreak,
       thisWeek: uniqueDaysThisWeek.size
     });
   } catch (err) {
