@@ -80,5 +80,7 @@ Thumbs.db
 #testing
 /server/scripts/
 
+# Documentation
+documentation/
 
 # End of file 
