@@ -5,6 +5,7 @@ const { embedTextWithCohere } = require('../ai/cohere');
 const { upsertToPinecone, queryPinecone } = require('../ai/pinecone');
 const { callLLM } = require('../ai/llm');
 const moment = require('moment-timezone');
+const { summarizeGraph } = require('../langgraph/summarizeGraph');
 
 // Function to update user streak data
 async function updateUserStreak(userId, entryDate, createdAt) {
@@ -92,6 +93,17 @@ exports.createEntry = async (req, res) => {
     
     // Summarize and update
     try {
+      if (process.env.LLM_ENGINE === 'langgraph') {
+        await summarizeGraph.invoke({ 
+          type: 'journal',
+          userId: req.user.userId, 
+          entryId: entry._id.toString(), 
+          title: entry.title, 
+          content: entry.content 
+        });
+        const refreshed = await JournalEntry.findById(entry._id);
+        return res.status(201).json(refreshed);
+      }
       const summaryData = await summarizeJournalEntry(content);
       
       // Store the original createdAt to ensure it's not modified
@@ -175,6 +187,17 @@ exports.updateEntry = async (req, res) => {
     
     // Summarize and update
     try {
+      if (process.env.LLM_ENGINE === 'langgraph') {
+        await summarizeGraph.invoke({ 
+          type: 'journal',
+          userId: req.user.userId, 
+          entryId: entry._id.toString(), 
+          title: entry.title, 
+          content: entry.content 
+        });
+        const refreshed = await JournalEntry.findById(entry._id);
+        return res.json(refreshed);
+      }
       const summaryData = await summarizeJournalEntry(content);
       Object.assign(entry, summaryData);
       

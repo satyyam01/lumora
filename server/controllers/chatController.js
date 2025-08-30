@@ -3,6 +3,8 @@ const { queryPinecone } = require('../ai/pinecone');
 const { callChat } = require('../ai/llm');
 const ChatSession = require('../models/ChatSession');
 const JournalEntry = require('../models/JournalEntry');
+const { chatGraph } = require('../langgraph/chatGraph');
+const { summarizeGraph } = require('../langgraph/summarizeGraph');
 
 // POST /api/chat/session - Start a new chat session
 exports.startChatSession = async (req, res) => {
@@ -12,6 +14,27 @@ exports.startChatSession = async (req, res) => {
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required.' });
+    }
+
+    if (process.env.LLM_ENGINE === 'langgraph') {
+      const result = await chatGraph.invoke({ userId, sessionId: null, entryId: entryId || null, query: message, messages: [] });
+      // Persist as session
+      const session = await ChatSession.create({
+        user: userId,
+        entry: entryId || null,
+        title: entryId ? (await JournalEntry.findById(entryId))?.title || message.slice(0, 40) : message.slice(0, 40),
+        messages: [
+          { role: 'user', content: message },
+          { role: 'ai', content: result.answer }
+        ]
+      });
+      return res.status(201).json({
+        sessionId: session._id,
+        messages: session.messages,
+        answer: result.answer,
+        title: session.title,
+        entry: entryId ? { _id: entryId, title: result.entryTitle || '' } : null
+      });
     }
 
     let context = '';
@@ -76,7 +99,17 @@ Respond now to the user's question with meaningful insights and emotionally inte
       ]
     });
 
-    // Step 5: Return the session ID and messages
+    // Step 5: Process chat message for important information (fire-and-forget)
+    summarizeGraph.invoke({
+      type: 'chat',
+      userId: userId,
+      content: message,
+    }).catch(error => {
+      // Log but don't block the response
+      console.error('Chat summarization error:', error.message);
+    });
+
+    // Step 6: Return the session ID and messages
     res.status(201).json({
       sessionId: session._id,
       messages: session.messages,
@@ -105,6 +138,16 @@ exports.continueChatSession = async (req, res) => {
     const session = await ChatSession.findOne({ _id: sessionId, user: userId });
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
+    }
+
+    if (process.env.LLM_ENGINE === 'langgraph') {
+      const N = 6;
+      const recentMessages = session.messages.slice(-N).map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }));
+      const result = await chatGraph.invoke({ userId, sessionId, entryId: session.entry || null, query: message, messages: recentMessages });
+      session.messages.push({ role: 'user', content: message });
+      session.messages.push({ role: 'ai', content: result.answer });
+      await session.save();
+      return res.json({ messages: session.messages, answer: result.answer });
     }
 
     // Get last N messages for context
@@ -151,6 +194,16 @@ exports.continueChatSession = async (req, res) => {
     session.messages.push({ role: 'user', content: message });
     session.messages.push({ role: 'ai', content: aiResponse });
     await session.save();
+
+    // Process chat message for important information (fire-and-forget)
+    summarizeGraph.invoke({
+      type: 'chat',
+      userId: userId,
+      content: message,
+    }).catch(error => {
+      // Log but don't block the response
+      console.error('Chat summarization error:', error.message);
+    });
 
     res.json({ messages: session.messages, answer: aiResponse });
   } catch (err) {
@@ -212,6 +265,11 @@ exports.chatWithJournal = async (req, res) => {
     const { message } = req.body;
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required.' });
+    }
+    if (process.env.LLM_ENGINE === 'langgraph') {
+      const userId = req.user.userId;
+      const result = await chatGraph.invoke({ userId, query: message });
+      return res.json({ answer: result.answer, matches: result.matches || [] });
     }
     // Embed the user message
     const embedding = await embedTextWithCohere(message);
