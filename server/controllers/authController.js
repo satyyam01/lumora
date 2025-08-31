@@ -6,7 +6,7 @@ const { sendEmail, otpVerification } = require('../utils/emailService');
 const JournalEntry = require('../models/JournalEntry');
 const ChatSession = require('../models/ChatSession');
 const MemorySnapshot = require('../models/MemorySnapshot');
-const { deleteUserVectorsFromPinecone } = require('../ai/pinecone');
+const { deleteUserVectorsFromPinecone } = require('../utils/vectorCleanup');
 
 exports.register = async (req, res) => {
   try {

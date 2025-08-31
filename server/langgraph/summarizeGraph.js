@@ -162,7 +162,10 @@ async function buildSummarizeGraph() {
 
 	// Node for upserting to Pinecone
 	graph.addNode('upsertPinecone', async (state) => {
-		if (!state.embedding) return state;
+		if (!state.embedding) {
+			console.log('❌ No embedding available for upsertPinecone node');
+			return state;
+		}
 		
 		let metadata = {
 			userId: state.userId,
@@ -181,6 +184,7 @@ async function buildSummarizeGraph() {
 				intent: state.summaryData.intent,
 				type: 'journal',
 			};
+			console.log('📝 Journal metadata prepared:', { entryId: state.entryId, title: state.title });
 		} else if (state.type === 'chat') {
 			metadata = {
 				...metadata,
@@ -192,13 +196,20 @@ async function buildSummarizeGraph() {
 		}
 		
 		const id = state.type === 'journal' ? state.entryId : `chat_${state.userId}_${Date.now()}`;
+		console.log('🚀 Upserting to Pinecone:', { id, type: state.type, userId: state.userId });
 		
-		await pineconeUpsert({
-			id,
-			embedding: state.embedding,
-			metadata,
-		});
-		return { ...state, upserted: true };
+		try {
+			await pineconeUpsert({
+				id,
+				embedding: state.embedding,
+				metadata,
+			});
+			console.log('✅ Pinecone upsert successful for:', id);
+			return { ...state, upserted: true };
+		} catch (error) {
+			console.error('❌ Pinecone upsert failed:', error.message);
+			throw error;
+		}
 	});
 
 	// Node for persisting journal summaries to DB

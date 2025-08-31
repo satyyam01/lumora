@@ -1,6 +1,3 @@
-const { embedTextWithCohere } = require('../ai/cohere');
-const { queryPinecone } = require('../ai/pinecone');
-const { callChat } = require('../ai/llm');
 const ChatSession = require('../models/ChatSession');
 const JournalEntry = require('../models/JournalEntry');
 const { chatGraph } = require('../langgraph/chatGraph');
@@ -16,106 +13,25 @@ exports.startChatSession = async (req, res) => {
       return res.status(400).json({ message: 'Message is required.' });
     }
 
-    if (process.env.LLM_ENGINE === 'langgraph') {
-      const result = await chatGraph.invoke({ userId, sessionId: null, entryId: entryId || null, query: message, messages: [] });
-      // Persist as session
-      const session = await ChatSession.create({
-        user: userId,
-        entry: entryId || null,
-        title: entryId ? (await JournalEntry.findById(entryId))?.title || message.slice(0, 40) : message.slice(0, 40),
-        messages: [
-          { role: 'user', content: message },
-          { role: 'ai', content: result.answer }
-        ]
-      });
-      return res.status(201).json({
-        sessionId: session._id,
-        messages: session.messages,
-        answer: result.answer,
-        title: session.title,
-        entry: entryId ? { _id: entryId, title: result.entryTitle || '' } : null
-      });
-    }
-
-    let context = '';
-    let entryTitle = '';
-    if (entryId) {
-      // Entry-specific chat: fetch only that entry
-      const entry = await JournalEntry.findOne({ _id: entryId, user: userId });
-      if (!entry) {
-        return res.status(404).json({ message: 'Entry not found' });
-      }
-      entryTitle = entry.title;
-      context = `Entry Title: ${entry.title}\nEntry Content: ${entry.content}`;
-    } else {
-      // Global chat: fetch relevant entries
-      const embedding = await embedTextWithCohere(message);
-      const matches = await queryPinecone({ embedding, topK: 5, namespace: 'default' });
-      context = matches.map((m, i) => {
-        const date = m.metadata?.date ? new Date(m.metadata.date).toLocaleDateString() : 'Unknown date';
-        const summary = m.metadata?.summary || '';
-        const bullets = Array.isArray(m.metadata?.bullets) ? m.metadata.bullets.join(' | ') : '';
-        return `${i + 1}. [${date}] ${summary}${bullets ? ' | ' + bullets : ''}`;
-      }).join('\n');
-    }
-
-    // Step 2: Build optimized prompt for the LLM
-    const prompt = `
-You are Lumora, a calm and emotionally intelligent journaling assistant.
-
-A user just asked: "${message}"
-
-Below are the user's most relevant past journal entries with summaries and emotional highlights:
-
-${context}
-
-Based strictly on these entries:
-- Reflect on the user’s recurring emotional patterns, struggles, or growth.
-- Reference specific memories, realizations, or emotional notes that could provide clarity or support.
-- Avoid being vague or overly generic — ground your answer in the actual entries.
-- Be encouraging, warm, and insightful — like a thoughtful friend who remembers everything and speaks with care.
-
-Respond now to the user's question with meaningful insights and emotionally intelligent suggestions.
-    `.trim();
-
-    let sessionTitle = '';
-    if (entryId && entry) {
-      sessionTitle = entry.title;
-    } else {
-      sessionTitle = message.slice(0, 40);
-    }
-
-    // Step 3: Get response from the LLM
-    const aiResponse = await callChat(prompt);
-
-    // Step 4: Create new chat session and save conversation
+    const result = await chatGraph.invoke({ userId, sessionId: null, entryId: entryId || null, query: message, messages: [] });
+    
+    // Persist as session
     const session = await ChatSession.create({
       user: userId,
       entry: entryId || null,
-      title: sessionTitle,
+      title: entryId ? (await JournalEntry.findById(entryId))?.title || message.slice(0, 40) : message.slice(0, 40),
       messages: [
         { role: 'user', content: message },
-        { role: 'ai', content: aiResponse }
+        { role: 'ai', content: result.answer }
       ]
     });
 
-    // Step 5: Process chat message for important information (fire-and-forget)
-    summarizeGraph.invoke({
-      type: 'chat',
-      userId: userId,
-      content: message,
-    }).catch(error => {
-      // Log but don't block the response
-      console.error('Chat summarization error:', error.message);
-    });
-
-    // Step 6: Return the session ID and messages
-    res.status(201).json({
+    return res.status(201).json({
       sessionId: session._id,
       messages: session.messages,
-      answer: aiResponse,
+      answer: result.answer,
       title: session.title,
-      entry: entryId ? { _id: entryId, title: entryTitle } : null
+      entry: entryId ? { _id: entryId, title: result.entryTitle || '' } : null
     });
 
   } catch (err) {
@@ -140,78 +56,21 @@ exports.continueChatSession = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    if (process.env.LLM_ENGINE === 'langgraph') {
-      const N = 6;
-      const recentMessages = session.messages.slice(-N).map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }));
-      const result = await chatGraph.invoke({ userId, sessionId, entryId: session.entry || null, query: message, messages: recentMessages });
-      session.messages.push({ role: 'user', content: message });
-      session.messages.push({ role: 'ai', content: result.answer });
-      await session.save();
-      return res.json({ messages: session.messages, answer: result.answer });
-    }
-
-    // Get last N messages for context
     const N = 6;
-    const recentMessages = session.messages.slice(-N);
-
-    // Filter out invalid messages
-    const chatHistory = recentMessages
-      .filter(m => typeof m.content === 'string' && m.content.trim() !== '')
-      .map(m => ({
-        role: m.role === 'ai' ? 'assistant' : 'user',
-        content: m.content
-      }));
-
-    // Add the current user message
-    chatHistory.push({ role: 'user', content: message });
-
-    // Build messages array for LLM
-    const messages = [
-      {
-        role: 'system',
-        content:
-          `You are Lumora, a thoughtful and empathetic journaling assistant. ` +
-          `Your job is to help the user reflect, understand their thoughts, and gain emotional clarity. ` +
-          `Use a warm, encouraging tone. When appropriate, reference patterns, moods, or entries they’ve shared before.`
-      },
-      ...chatHistory
-    ];
-
-    // Strong filter for LLM input
-    const safeMessages = messages.filter(
-      m =>
-        (m.role === 'user' || m.role === 'assistant' || m.role === 'system') &&
-        typeof m.content === 'string' &&
-        m.content.trim() !== ''
-    );
-
-    console.log("Sending messages to LLM:", JSON.stringify(safeMessages, null, 2));
-
-    // Call Mixtral via callChat (must accept `messages`)
-    const aiResponse = await callChat({ messages: safeMessages });
-
-    // Save user and AI messages to session
+    const recentMessages = session.messages.slice(-N).map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }));
+    const result = await chatGraph.invoke({ userId, sessionId, entryId: session.entry || null, query: message, messages: recentMessages });
+    
     session.messages.push({ role: 'user', content: message });
-    session.messages.push({ role: 'ai', content: aiResponse });
+    session.messages.push({ role: 'ai', content: result.answer });
     await session.save();
 
-    // Process chat message for important information (fire-and-forget)
-    summarizeGraph.invoke({
-      type: 'chat',
-      userId: userId,
-      content: message,
-    }).catch(error => {
-      // Log but don't block the response
-      console.error('Chat summarization error:', error.message);
-    });
+    return res.json({ messages: session.messages, answer: result.answer });
 
-    res.json({ messages: session.messages, answer: aiResponse });
   } catch (err) {
     console.error('Continue chat session error:', err.message);
     res.status(500).json({ message: 'Failed to continue chat session', error: err.message });
   }
 };
-
 
 // GET /api/chat/sessions - List all chat sessions for the user
 exports.listChatSessions = async (req, res) => {
@@ -266,42 +125,11 @@ exports.chatWithJournal = async (req, res) => {
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required.' });
     }
-    if (process.env.LLM_ENGINE === 'langgraph') {
-      const userId = req.user.userId;
-      const result = await chatGraph.invoke({ userId, query: message });
-      return res.json({ answer: result.answer, matches: result.matches || [] });
-    }
-    // Embed the user message
-    const embedding = await embedTextWithCohere(message);
-    // Query Pinecone for top 5 relevant entries for this user
-    const matches = await queryPinecone({ embedding, topK: 5, namespace: 'default' });
-    // Format context for LLM
-    const context = matches.map((m, i) => {
-      const date = m.metadata?.date ? new Date(m.metadata.date).toLocaleDateString() : 'Unknown date';
-      const summary = m.metadata?.summary || '';
-      const bullets = Array.isArray(m.metadata?.bullets) ? m.metadata.bullets.join(' | ') : '';
-      return `${i + 1}. [${date}] ${summary}${bullets ? ' | ' + bullets : ''}`;
-    }).join('\n');
-    // Build prompt
-    const prompt = `
-You are an empathetic journaling assistant helping users reflect on their past entries. The user asked: "${message}"
-
-Below are the most relevant past journal summaries, including emotional highlights and key takeaways:
-
-${context}
-
-Based only on these past entries:
-- Understand the user's emotional patterns, struggles, progress, or decisions.
-- Reference relevant events or realizations that could help them reflect or decide.
-- Avoid generic responses. Ground your answer in specifics from the summaries.
-- Be emotionally supportive, insightful, and thoughtful — like a kind friend who remembers everything.
-
-Respond directly to the user's message with clear insights, helpful suggestions, and a warm tone.
-`;
-
-    // Call Mixtral LLM for chat
-    const llmResponse = await callChat(prompt);
-    res.json({ answer: llmResponse, matches });
+    
+    const userId = req.user.userId;
+    const result = await chatGraph.invoke({ userId, query: message });
+    return res.json({ answer: result.answer, matches: result.matches || [] });
+    
   } catch (err) {
     console.error('Chatbot retrieval error:', err.message);
     res.status(500).json({ message: 'Chatbot retrieval failed', error: err.message });

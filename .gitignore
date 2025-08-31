@@ -135,4 +135,7 @@ Thumbs.db
 *.tar.gz
 *.rar
 
+# Other files
+unused/
+
 # End of file 

@@ -6,8 +6,7 @@ const { summarizeGraph } = require('./summarizeGraph');
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
-const PINECONE_HOST = process.env.PINECONE_HOST; // e.g., https://your-index-XXXXX.svc.[region].pinecone.io
-
+const PINECONE_HOST = process.env.PINECONE_HOST;
 let compiledPromise = null;
 
 async function buildChatGraph() {
@@ -29,10 +28,22 @@ async function buildChatGraph() {
 		model: 'embed-english-v3.0',
 	});
 
-	async function pineconeQuery({ embedding, topK = 5, namespace = 'default' }) {
+	async function pineconeQuery({ embedding, topK = 5, namespace = 'default', userId = null }) {
+		const queryBody = { 
+			vector: embedding, 
+			topK, 
+			includeMetadata: true, 
+			namespace 
+		};
+		
+		// Add user filter if userId is provided
+		if (userId) {
+			queryBody.filter = { userId };
+		}
+		
 		const resp = await axios.post(
 			`${PINECONE_HOST}/query`,
-			{ vector: embedding, topK, includeMetadata: true, namespace },
+			queryBody,
 			{ headers: { 'Api-Key': PINECONE_API_KEY, 'Content-Type': 'application/json' } }
 		);
 		return resp.data.matches || [];
@@ -80,7 +91,19 @@ async function buildChatGraph() {
 	graph.addNode('retrieveDocs', async (state) => {
 		if (state.entryId) return state; // skip if entry-specific
 		if (!state.embedding) return state;
-		const matches = await pineconeQuery({ embedding: state.embedding, topK: 5, namespace: 'default' });
+		
+		console.log('🔍 Retrieving docs for user:', state.userId);
+		const matches = await pineconeQuery({ 
+			embedding: state.embedding, 
+			topK: 5, 
+			namespace: 'default',
+			userId: state.userId  // ✅ Add user filtering!
+		});
+		console.log('📊 Found matches:', matches.length);
+		if (matches.length > 0) {
+			console.log('   First match metadata:', matches[0].metadata);
+		}
+		
 		return { ...state, matches };
 	});
 
@@ -90,16 +113,26 @@ async function buildChatGraph() {
 		  return { ...state, context: `Entry Title: ${state.entryTitle}\nEntry Content: ${state.context}` };
 		}
 	  
+		console.log('🧩 Assembling context from', state.matches?.length || 0, 'matches');
+		
 		// Otherwise include only recent/relevant summaries
+		console.log('📅 Date filtering details:');
+		const cutoffDate = new Date(Date.now() - 7*24*60*60*1000);
+		console.log('   Cutoff date (7 days ago):', cutoffDate.toISOString());
+		
+		// Temporarily remove date filtering to debug
 		const context = (state.matches || [])
-		  .filter(m => new Date(m.metadata?.date) >= new Date(Date.now() - 7*24*60*60*1000))
 		  .map((m, i) => {
 			const date = m.metadata?.date ? new Date(m.metadata.date).toLocaleDateString() : 'Unknown date';
 			const summary = m.metadata?.summary || '';
 			const bullets = Array.isArray(m.metadata?.bullets) ? m.metadata.bullets.join(' | ') : '';
+			console.log(`   Processing entry ${i + 1}: ${date} - ${summary}`);
 			return `${i + 1}. [${date}] ${summary}${bullets ? ' | ' + bullets : ''}`;
 		  })
 		  .join('\n');
+		
+		console.log('📝 Final context length:', context.length);
+		console.log('📝 Context preview:', context.substring(0, 200) + '...');
 	  
 		return { ...state, context };
 	  });
